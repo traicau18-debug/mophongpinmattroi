@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô phỏng vật lý pin mặt trời</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        .solar-cell-container {
+            position: relative;
+            width: 100%;
+            height: 520px;
+            background: #020617;
+            border-radius: 12px;
+            border: 1px solid #1e293b;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        input[type=range] {
+            accent-color: #fbbf24;
+        }
+
+        .led-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .led-on { background-color: #22c55e; box-shadow: 0 0 10px #22c55e; }
+        .led-off { background-color: #ef4444; }
+
+        .label-tech {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #64748b;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="mb-6 flex justify-between items-end border-b border-slate-800 pb-4">
+            <div>
+                <h1 class="text-3xl font-bold text-amber-500 tracking-tight">Mô phỏng hoạt động của pin mặt trời silicon</h1>
+                <p class="text-slate-500 mt-1 italic">Thiết kế: Nguyễn Mạnh Hưng</p>
+            </div>
+            <div class="text-right">
+                <span class="label-tech">Hệ thống</span>
+                <div class="flex items-center justify-end mt-1">
+                    <span id="status-led" class="led-indicator led-on"></span>
+                    <span id="status-text" class="text-xs font-bold uppercase">Online</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-2 space-y-6">
+                <div class="solar-cell-container relative shadow-inner">
+                    <canvas id="simCanvas"></canvas>
+                    
+                    <div class="absolute top-4 left-4 pointer-events-none space-y-2">
+                        <div class="bg-slate-900/80 p-3 rounded-lg border border-white/5 backdrop-blur-sm">
+                            <div class="flex items-center gap-2 mb-1">
+                                <div class="w-3 h-1 bg-amber-300 rounded-full shadow-[0_0_8px_#fcd34d]"></div>
+                                <p class="text-[10px] text-amber-200 font-bold uppercase tracking-wider">Tia sáng (Photon)</p>
+                            </div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <div class="w-2 h-2 bg-blue-400 rounded-full"></div>
+                                <p class="text-[10px] text-blue-300 font-bold uppercase tracking-wider">Electron (e⁻)</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-2 h-2 bg-red-400 rounded-full"></div>
+                                <p class="text-[10px] text-red-300 font-bold uppercase tracking-wider">Lỗ trống (h⁺)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+                        <span class="label-tech">Cường độ dòng (I)</span>
+                        <div class="text-2xl font-mono text-blue-400 mt-1"><span id="val-current">0.00</span> mA</div>
+                    </div>
+                    <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+                        <span class="label-tech">Hiệu thế (V)</span>
+                        <div class="text-2xl font-mono text-amber-400 mt-1"><span id="val-voltage">0.00</span> V</div>
+                    </div>
+                    <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+                        <span class="label-tech">Hiệu suất (η)</span>
+                        <div class="text-2xl font-mono text-emerald-400 mt-1"><span id="val-efficiency">0.0</span> %</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <section class="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 shadow-xl">
+                    <h2 class="text-sm font-bold text-slate-400 mb-6 flex items-center gap-2 uppercase tracking-widest">
+                        <span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                        Thông số vận hành
+                    </h2>
+                    
+                    <div class="space-y-8">
+                        <div>
+                            <div class="flex justify-between mb-3">
+                                <label class="text-xs font-semibold text-slate-300">Cường độ bức xạ Mặt Trời</label>
+                                <span id="light-label" class="text-xs font-mono font-bold text-amber-500">800 W/m²</span>
+                            </div>
+                            <input type="range" id="lightRange" min="0" max="100" value="80" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                        </div>
+
+                        <div class="flex items-center justify-between p-4 bg-slate-950 rounded-xl border border-slate-800">
+                            <span class="text-xs font-semibold">Trạng thái Nguồn</span>
+                            <button id="toggleLight" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all">Bật / Tắt</button>
+                        </div>
+
+                        <div class="p-4 bg-amber-900/10 rounded-xl text-[11px] leading-relaxed text-slate-400 border border-amber-500/10">
+                            <strong class="text-amber-500 block mb-1 uppercase tracking-tight">Vật lý học:</strong>
+                            Ánh sáng chiếu vào mặt pin dưới dạng các chùm tia năng lượng. Khi va chạm với tinh thể Silic, các photon bị hấp thụ và kích thích các electron từ dải hóa trị lên dải dẫn.
+                        </div>
+                    </div>
+                </section>
+
+                <section class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 shadow-xl h-60 relative overflow-hidden">
+                    <h2 class="text-[10px] font-black text-slate-500 mb-3 uppercase tracking-widest text-center">Đặc tuyến Photovoltaic I-V</h2>
+                    <canvas id="chartCanvas"></canvas>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const chartCanvas = document.getElementById('chartCanvas');
+        const chartCtx = chartCanvas.getContext('2d');
+
+        let width, height;
+        let isLightOn = true;
+        let lightIntensity = 0.8;
+        
+        const colors = {
+            siliconN: '#334155',
+            siliconP: '#1e293b',
+            metal: '#94a3b8',
+            photonRay: 'rgba(252, 211, 77, 0.15)',
+            photonCore: '#fef3c7',
+            electron: '#60a5fa',
+            hole: '#f87171',
+            wire: '#334155',
+            bulbOff: '#1e293b',
+            bulbOn: '#fbbf24'
+        };
+
+        const state = {
+            rays: [], // Continuous light beams
+            electrons: [],
+            holes: [],
+            circuitElectrons: [],
+            recombinations: [], 
+            impactGlows: [],
+            time: 0
+        };
+
+        function resize() {
+            const container = canvas.parentElement;
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            chartCanvas.width = chartCanvas.parentElement.clientWidth;
+            chartCanvas.height = chartCanvas.parentElement.clientHeight - 40;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Initialize Light Rays (Static X positions)
+        for(let i=0; i<30; i++) {
+            state.rays.push({
+                x: (width * 0.1) + (width * 0.6 * (i/30)),
+                width: 2 + Math.random() * 4,
+                speed: 0.05 + Math.random() * 0.05,
+                offset: Math.random() * 100
+            });
+        }
+
+        class Charge {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type; 
+                this.speed = 0.4; // Chậm để dạy học
+                this.done = false;
+            }
+            update() {
+                if (this.type === 'e') {
+                    this.y -= this.speed;
+                    if (this.y <= height * 0.4) {
+                        this.done = true;
+                        if (state.circuitElectrons.length < 50) state.circuitElectrons.push(new CircuitElectron());
+                    }
+                } else {
+                    this.y += this.speed;
+                    if (this.y >= height * 0.75) this.done = true;
+                }
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                ctx.fillStyle = this.type === 'e' ? colors.electron : colors.hole;
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        class CircuitElectron {
+            constructor() {
+                this.progress = 0;
+                this.speed = 0.003 + (lightIntensity * 0.015);
+            }
+            update() { this.progress += this.speed; }
+        }
+
+        function drawLightSystem() {
+            if (!isLightOn) return;
+
+            // 1. Draw Beams (Rays)
+            ctx.save();
+            state.rays.forEach(ray => {
+                const alpha = (0.05 + Math.sin(state.time * 2 + ray.offset) * 0.05) * lightIntensity;
+                const grad = ctx.createLinearGradient(ray.x, 0, ray.x, height * 0.4);
+                grad.addColorStop(0, `rgba(252, 211, 77, 0)`);
+                grad.addColorStop(0.5, `rgba(252, 211, 77, ${alpha})`);
+                grad.addColorStop(1, `rgba(252, 211, 77, ${alpha * 2})`);
+                
+                ctx.fillStyle = grad;
+                ctx.fillRect(ray.x - ray.width/2, 0, ray.width, height * 0.4);
+            });
+            ctx.restore();
+
+            // 2. High Speed "Energy Packets" (Simulation of Photons)
+            if (state.time % 2 < 0.2) { // Random burst
+                for(let i=0; i < 3 * lightIntensity; i++) {
+                    const px = (width * 0.1) + Math.random() * (width * 0.6);
+                    state.impactGlows.push({x: px, y: height * 0.4, r: 2, a: 1});
+                    if (Math.random() < 0.3) {
+                        state.electrons.push(new Charge(px, height * 0.55 + (Math.random()-0.5)*20, 'e'));
+                        state.holes.push(new Charge(px, height * 0.55 + (Math.random()-0.5)*20, 'h'));
+                    }
+                }
+            }
+
+            // 3. Overall Sky Glow
+            const skyGrad = ctx.createRadialGradient(width/2, -100, 0, width/2, -100, height * 0.8);
+            skyGrad.addColorStop(0, `rgba(251, 191, 36, ${0.15 * lightIntensity})`);
+            skyGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0,0, width, height);
+        }
+
+        function drawCell() {
+            const cellX = width * 0.1;
+            const cellW = width * 0.6;
+            const cellH = height * 0.4;
+            const cellY = height * 0.4;
+
+            // P-Si
+            ctx.fillStyle = colors.siliconP;
+            ctx.fillRect(cellX, cellY + cellH/2, cellW, cellH/2);
+            // N-Si
+            ctx.fillStyle = colors.siliconN;
+            ctx.fillRect(cellX, cellY, cellW, cellH/2);
+            
+            // Junction highlight
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+            ctx.fillRect(cellX, cellY + cellH/2 - 10, cellW, 20);
+
+            // Metal
+            ctx.fillStyle = colors.metal;
+            ctx.fillRect(cellX, cellY + cellH, cellW, 8); // Base
+            for(let i=0; i<12; i++) {
+                ctx.fillRect(cellX + (cellW/12)*i, cellY - 5, 3, 10); // Grid pins
+            }
+            ctx.fillRect(cellX, cellY - 5, cellW, 2); // Top wire line
+
+            // Surface Reflection (Realism)
+            if (isLightOn) {
+                const refl = ctx.createLinearGradient(cellX, 0, cellX + cellW, 0);
+                refl.addColorStop(0, 'rgba(255,255,255,0)');
+                refl.addColorStop(0.5, `rgba(255,255,255,${0.05 * lightIntensity})`);
+                refl.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = refl;
+                ctx.fillRect(cellX, cellY, cellW, 5);
+            }
+
+            // Labels
+            ctx.font = '700 9px Inter';
+            ctx.fillStyle = '#475569';
+            ctx.fillText("BÁN DẪN LOẠI n", cellX + 10, cellY + 20);
+            ctx.fillText("BÁN DẪN LOẠI p", cellX + 10, cellY + cellH - 15);
+        }
+
+        function drawCircuit() {
+            const cellX = width * 0.1;
+            const cellW = width * 0.6;
+            const cellY = height * 0.4;
+            const cellH = height * 0.4;
+            const bulbX = width * 0.85;
+            const bulbY = height * 0.6;
+
+            ctx.strokeStyle = colors.wire;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            
+            // Top wire
+            ctx.beginPath();
+            ctx.moveTo(cellX + cellW, cellY - 5);
+            ctx.lineTo(bulbX, cellY - 5);
+            ctx.lineTo(bulbX, bulbY - 20);
+            ctx.stroke();
+
+            // Bottom wire
+            ctx.beginPath();
+            ctx.moveTo(bulbX, bulbY + 20);
+            ctx.lineTo(bulbX, cellY + cellH + 4);
+            ctx.lineTo(cellX + cellW, cellY + cellH + 4);
+            ctx.stroke();
+
+            // Bulb
+            const glow = lightIntensity * isLightOn;
+            ctx.beginPath();
+            ctx.arc(bulbX, bulbY, 20, 0, Math.PI * 2);
+            ctx.fillStyle = glow > 0.1 ? `rgba(251, 191, 36, ${0.3 + glow * 0.7})` : '#0f172a';
+            if (glow > 0.1) {
+                ctx.shadowBlur = 30 * glow;
+                ctx.shadowColor = '#fbbf24';
+            }
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.stroke();
+
+            // Filament
+            if (glow > 0.1) {
+                ctx.beginPath();
+                ctx.moveTo(bulbX-6, bulbY+5);
+                ctx.lineTo(bulbX, bulbY-8);
+                ctx.lineTo(bulbX+6, bulbY+5);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // Electrons
+            state.circuitElectrons.forEach((e, idx) => {
+                e.update();
+                if (e.progress >= 1) {
+                    state.recombinations.push({x: cellX + cellW, y: cellY + cellH + 4, r: 2, a: 1});
+                    state.circuitElectrons.splice(idx, 1);
+                    return;
+                }
+                let ex, ey;
+                if (e.progress < 0.4) {
+                    ex = (cellX + cellW) + (bulbX - (cellX + cellW)) * (e.progress / 0.4);
+                    ey = cellY - 5;
+                } else if (e.progress < 0.5) {
+                    ex = bulbX;
+                    ey = (cellY - 5) + (bulbY - 20 - (cellY - 5)) * ((e.progress - 0.4) / 0.1);
+                } else if (e.progress < 0.6) {
+                    ex = bulbX;
+                    ey = (bulbY + 20) + (cellY + cellH + 4 - (bulbY + 20)) * ((e.progress - 0.5) / 0.1);
+                } else {
+                    ex = bulbX - (bulbX - (cellX + cellW)) * ((e.progress - 0.6) / 0.4);
+                    ey = cellY + cellH + 4;
+                }
+                ctx.fillStyle = colors.electron;
+                ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI*2); ctx.fill();
+            });
+
+            // Impact & Recombination effects
+            [...state.recombinations, ...state.impactGlows].forEach((r, idx) => {
+                ctx.beginPath();
+                ctx.arc(r.x, r.y, r.r, 0, Math.PI*2);
+                ctx.strokeStyle = `rgba(255,255,255,${r.a})`;
+                ctx.stroke();
+                r.r += 0.5; r.a -= 0.05;
+            });
+            state.recombinations = state.recombinations.filter(r => r.a > 0);
+            state.impactGlows = state.impactGlows.filter(r => r.a > 0);
+        }
+
+        function drawIV() {
+            const w = chartCanvas.width;
+            const h = chartCanvas.height;
+            chartCtx.clearRect(0, 0, w, h);
+            chartCtx.strokeStyle = '#1e293b';
+            chartCtx.lineWidth = 1;
+            chartCtx.beginPath();
+            chartCtx.moveTo(30, 10); chartCtx.lineTo(30, h - 25); chartCtx.lineTo(w - 10, h - 25);
+            chartCtx.stroke();
+            
+            if (isLightOn) {
+                chartCtx.strokeStyle = '#fbbf24';
+                chartCtx.lineWidth = 2;
+                chartCtx.beginPath();
+                const IL = lightIntensity * (h - 60);
+                for (let x = 0; x < w - 50; x++) {
+                    const i = IL - (Math.exp(x / 25) - 1);
+                    const py = (h - 25) - Math.max(0, i);
+                    if (x === 0) chartCtx.moveTo(30 + x, py); else chartCtx.lineTo(30 + x, py);
+                }
+                chartCtx.stroke();
+            }
+        }
+
+        function animate() {
+            state.time += 0.02;
+            ctx.clearRect(0, 0, width, height);
+            
+            drawCell();
+            drawLightSystem();
+            
+            state.electrons.forEach((e, i) => { e.update(); e.draw(); if (e.done) state.electrons.splice(i, 1); });
+            state.holes.forEach((h, i) => { h.update(); h.draw(); if (h.done) state.holes.splice(i, 1); });
+            
+            drawCircuit();
+            drawIV();
+
+            // Stats
+            const power = isLightOn ? lightIntensity * 1000 : 0;
+            const cur = isLightOn ? lightIntensity * 38.5 : 0;
+            document.getElementById('val-current').textContent = cur.toFixed(2);
+            document.getElementById('val-voltage').textContent = (isLightOn ? 0.61 : 0).toFixed(2);
+            document.getElementById('val-efficiency').textContent = (isLightOn ? 19.2 : 0).toFixed(1);
+            document.getElementById('light-label').textContent = Math.round(power) + " W/m²";
+
+            requestAnimationFrame(animate);
+        }
+
+        document.getElementById('lightRange').addEventListener('input', (e) => {
+            lightIntensity = e.target.value / 100;
+        });
+
+        document.getElementById('toggleLight').addEventListener('click', () => {
+            isLightOn = !isLightOn;
+            document.getElementById('status-led').className = isLightOn ? 'led-indicator led-on' : 'led-indicator led-off';
+            document.getElementById('status-text').textContent = isLightOn ? 'Online' : 'Offline';
+        });
+
+        window.onload = animate;
+    </script>
+</body>
+</html>
